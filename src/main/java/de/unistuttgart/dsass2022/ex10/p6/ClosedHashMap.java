@@ -1,7 +1,6 @@
 package de.unistuttgart.dsass2022.ex10.p6;
 
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
@@ -16,9 +15,9 @@ import java.util.stream.IntStream;
 public class ClosedHashMap<V> extends AbstractHashMap<V> {
 
     private static final int DEFAULT_SIZE = 19;
-	private static final double THRESHOLD = 0.9;
+    private static final double THRESHOLD = 0.9;
 
-	private int fillCount = 0;
+    private int fillCount = 0;
 
     /**
      * Initializes a ClosedHashMap with <code>DEFAULT_SIZE</code>
@@ -44,14 +43,29 @@ public class ClosedHashMap<V> extends AbstractHashMap<V> {
         this.map = new KeyValuePair[size];
     }
 
+    private boolean isValidSize(int size) {
+        return size % 4 == 3 && isPrime(size);
+    }
+
+    private boolean isPrime(int number) {
+        return number > 1
+                && IntStream.rangeClosed(2, (int) Math.sqrt(number))
+                .noneMatch(n -> (number % n == 0));
+    }
+
     @Override
     public V put(int key, V value) throws IllegalStateException {
+
+        if (fillCount + 1 > (int) Math.round(map.length * THRESHOLD)) {
+            resize();
+        }
+
         V previous = null;
         for (int i = 0; i < map.length; i++) {
             int index = quadraticProbing(key, i);
             if (map[index] == null) {
                 map[index] = new KeyValuePair<>(key, value);
-				fillCount++;
+                fillCount++;
                 break;
             } else if (map[index].getKey() == key) {
                 previous = map[index].getValue();
@@ -62,26 +76,23 @@ public class ClosedHashMap<V> extends AbstractHashMap<V> {
         return previous;
     }
 
-    @Override
-    public boolean containsKey(int key) {
-        for (int i = 0; i < map.length; i++) {
-            int index = quadraticProbing(key, i);
-            if (map[index] != null && map[index].getKey() == key) {
-                return true;
-            }
+    private void resize() {
+        int newSize = 0;
+        for (int t = map.length * 2; newSize < map.length * 2; t++) {
+            newSize = isValidSize(t) ? t : newSize;
         }
-        return false;
-    }
 
-    @Override
-    public V get(int key) {
-        for (int i = 0; i < map.length; i++) {
-            int index = quadraticProbing(key, i);
-            if (map[index] != null && map[index].getKey() == key) {
-                return map[index].getValue();
-            }
+        List<KeyValuePair<V>> pairs = new ArrayList<>();
+        for (KeyValuePair<V> pair : this) {
+            pairs.add(pair);
         }
-        return null;
+
+        this.map = new KeyValuePair[newSize];
+        this.fillCount = 0;
+
+        for (KeyValuePair<V> pair: pairs) {
+            this.put(pair.getKey(), pair.getValue());
+        }
     }
 
     private int quadraticProbing(int key, int i) {
@@ -89,14 +100,30 @@ public class ClosedHashMap<V> extends AbstractHashMap<V> {
         return mod >= 0 ? mod : mod + map.length;
     }
 
-    private boolean isValidSize(int size) {
-        return size % 4 == 3 && isPrime(size);
+    @Override
+    public boolean containsKey(int key) {
+        boolean found = false;
+        for (int i = 0; i < map.length; i++) {
+            int index = quadraticProbing(key, i);
+            if (map[index] != null && map[index].getKey() == key) {
+                found = true;
+                break;
+            }
+        }
+        return found;
     }
 
-    private boolean isPrime(int number) {
-        return number > 1
-                && IntStream.rangeClosed(2, (int) Math.sqrt(number))
-                .noneMatch(n -> (number % n == 0));
+    @Override
+    public V get(int key) {
+        V value = null;
+        for (int i = 0; i < map.length; i++) {
+            int index = quadraticProbing(key, i);
+            if (map[index] != null && map[index].getKey() == key) {
+                value = map[index].getValue();
+                break;
+            }
+        }
+        return value;
     }
 
     public Iterator<KeyValuePair<V>> iterator() {
